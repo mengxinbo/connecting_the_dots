@@ -45,13 +45,11 @@ class PolarizationWorker(torchext.Worker):
         self.test_paths = sample_paths[:256]    # Use first 256 for testing
         
         # Loss modules
-        self.disparity_loss = pol_networks.DisparityLoss() if hasattr(pol_networks, 'DisparityLoss') else None
-        if self.disparity_loss is None:
-            # Import from base networks if not in pol_networks
-            from model.networks import DisparityLoss
-            self.disparity_loss = DisparityLoss()
+        from model.networks import DisparityLoss
+        self.disparity_loss = DisparityLoss()
         
-        self.edge_loss = torch.nn.BCEWithLogitsLoss(pos_weight=torch.Tensor([0.1]).to(self.train_device))
+        # Edge loss (pos_weight will be moved to device during training)
+        self.edge_loss = torch.nn.BCEWithLogitsLoss(pos_weight=torch.tensor([0.1]))
         
         # Evaluation mask (similar to original code)
         self.eval_mask = np.zeros(self.imsizes[0])
@@ -81,6 +79,10 @@ class PolarizationWorker(torchext.Worker):
         return test_sets
     
     def copy_data(self, data, device, requires_grad, train):
+        # Move loss modules to device
+        self.disparity_loss = self.disparity_loss.to(device)
+        self.edge_loss = self.edge_loss.to(device)
+        
         self.data = {}
         for key, val in data.items():
             grad = 'pol_input' in key and requires_grad
