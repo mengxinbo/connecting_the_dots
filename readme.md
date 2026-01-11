@@ -102,5 +102,104 @@ python train_val.py --cmd retest --epoch 99
 ```
 You can also download our validation set from [here (3.7G)](https://s3.eu-central-1.amazonaws.com/avg-projects/connecting_the_dots/val_data.zip).
 
+## Polarization Camera Support
+
+This codebase now supports **Polarization Camera** input for depth estimation, leveraging polarization information to improve depth and surface normal estimation.
+
+### Data Preparation
+
+Polarization camera data should be organized in the following format:
+```
+data/polarization/
+├── 00000000/
+│   ├── pol_0.npy      # 0° polarization image [H, W]
+│   ├── pol_45.npy     # 45° polarization image [H, W]
+│   ├── pol_90.npy     # 90° polarization image [H, W]
+│   ├── pol_135.npy    # 135° polarization image [H, W]
+│   ├── depth.npy      # Depth ground truth (optional) [H, W]
+│   └── normal.npy     # Surface normal ground truth (optional) [H, W, 3]
+├── 00000001/
+│   └── ...
+└── ...
+```
+
+Update `config.json` to include the polarization data root:
+```json
+{
+  "POL_DATA_ROOT": "data/polarization"
+}
+```
+
+### Polarization Input Modes
+
+The system supports 4 different polarization input modes:
+
+| Input Type | Channels | Description |
+|------------|----------|-------------|
+| `raw` | 4 | Direct 4 polarization directions: I₀, I₄₅, I₉₀, I₁₃₅ |
+| `stokes` | 3 | Stokes parameters: S₀, S₁, S₂ |
+| `dolp_aolp` | 3 | S₀ + Degree of Linear Polarization + Angle of Linear Polarization |
+| `full` | 6 | All information: S₀, S₁, S₂, DoLP, AoLP, intensity |
+
+**Stokes Parameters:**
+- S₀ = (I₀ + I₄₅ + I₉₀ + I₁₃₅) / 2 (total intensity)
+- S₁ = I₀ - I₉₀ (linear polarization 0°-90°)
+- S₂ = I₄₅ - I₁₃₅ (linear polarization 45°-135°)
+
+**Polarization Metrics:**
+- DoLP = √(S₁² + S₂²) / S₀ (degree of linear polarization)
+- AoLP = 0.5 × arctan2(S₂, S₁) (angle of linear polarization)
+
+### Training with Polarization Camera
+
+#### Basic Training
+Train with Stokes parameters (recommended):
+```bash
+python train_pol.py --input_type stokes --epochs 100
+```
+
+#### Different Input Modes
+Train with raw polarization images:
+```bash
+python train_pol.py --input_type raw --epochs 100
+```
+
+Train with DoLP and AoLP:
+```bash
+python train_pol.py --input_type dolp_aolp --epochs 100
+```
+
+Train with all polarization information:
+```bash
+python train_pol.py --input_type full --epochs 100
+```
+
+#### Multi-task Learning with Normal Prediction
+Enable surface normal prediction (requires normal ground truth):
+```bash
+python train_pol.py --input_type stokes --use_normal True --normal_weight 0.1 --epochs 100
+```
+
+#### Resume Training
+```bash
+python train_pol.py --cmd resume --input_type stokes
+```
+
+#### Evaluate Trained Model
+```bash
+python train_pol.py --cmd retest --epoch 50 --input_type stokes
+```
+
+### Loss Weights
+
+- `--dp_weight`: Weight for disparity smoothness loss (default: 0.02)
+- `--normal_weight`: Weight for surface normal loss when using multi-task learning (default: 0.1)
+
+### Network Architectures
+
+1. **PolarizationDispEdgeDecoders**: Estimates disparity and edges from polarization input
+2. **PolarizationNormalDecoder**: Estimates surface normals using polarization information
+3. **PolarizationMultiTaskNet**: Joint estimation of disparity, edges, and surface normals
+
 ## Acknowledgement 
 This work was supported by the Intel Network on Intelligent Systems.
