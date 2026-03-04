@@ -26,7 +26,7 @@ def get_patterns(path='syn', imsizes=[], crop=True):
   patterns = []
   for imsize in imsizes:
     pat = cv2.resize(pattern, (imsize[1],imsize[0]), interpolation=cv2.INTER_LINEAR)
-    patterns.append(pat)
+    patterns.append(np.ascontiguousarray(pat, dtype=np.float32))
 
   return patterns
 
